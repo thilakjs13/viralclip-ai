@@ -4,126 +4,128 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#10101b">
 <title>ViralClip AI</title>
 <style>
-*{box-sizing:border-box}
-body{margin:0;background:#10101b;color:white;font-family:Arial,sans-serif;padding:22px}
-header{text-align:center;padding:20px 0}
-h1{font-size:30px;margin:0;color:#a78bfa}
-p{color:#aaa;line-height:1.5}
-.card{background:#1d1d2d;border:1px solid #34344b;border-radius:16px;padding:18px;margin:16px 0}
-button,.upload{display:block;width:100%;padding:14px;border:0;border-radius:10px;background:#8055ee;color:white;font-weight:bold;font-size:15px;text-align:center;margin-top:12px}
-input{width:100%;margin:12px 0}
-video{width:100%;max-height:360px;background:#000;border-radius:12px}
-label{display:block;margin-top:14px;color:#ddd}
-small{color:#999}
-#status{color:#a78bfa;margin-top:12px}
+body{background:#10101b;color:white;font-family:Arial;padding:20px}
+h1{color:#a78bfa;text-align:center}
+.card{background:#202035;padding:18px;border-radius:15px;margin:15px 0}
+button,.upload{display:block;background:#8055ee;color:white;padding:14px;border:0;border-radius:9px;margin:12px 0;width:100%;text-align:center;font-weight:bold}
+input{width:100%;margin:12px 0;color:white}
+video{width:100%;max-height:350px}
+p{color:#bbb}
 </style>
 </head>
 <body>
-<header>
 <h1>VIRALCLIP AI</h1>
-<p>Your free AI-powered short video studio</p>
-</header>
+<p style="text-align:center">Free AI Video Studio</p>
 
 <div class="card">
-<h3>01 / Upload your video</h3>
-<label class="upload" for="file">Choose video from iPhone</label>
+<h3>01. Upload Video</h3>
+<label class="upload" for="file">Choose iPhone Video</label>
 <input id="file" type="file" accept="video/*" hidden>
-<video id="video" controls playsinline></video>
-<p id="info">No video selected yet.</p>
+<video id="preview" controls playsinline></video>
+<p id="info">No video selected</p>
 </div>
 
 <div class="card">
-<h3>02 / Create your clip</h3>
+<h3>02. Clip Settings</h3>
 <label>Start time (seconds)</label>
-<input id="start" type="number" min="0" value="0">
-<label>Clip duration (seconds)</label>
-<input id="duration" type="number" min="1" max="60" value="30">
-<button id="preview">Preview selected clip</button>
-<button id="export">Export clip</button>
-<p id="status">Ready for your video.</p>
+<input id="start" type="number" value="0" min="0">
+<label>Duration (seconds)</label>
+<input id="duration" type="number" value="10" min="1" max="60">
+<button id="load">Load Free Video Engine</button>
+<button id="export" disabled>Export MP4 Clip</button>
+<p id="status">Ready</p>
 </div>
 
 <div class="card">
-<h3>03 / Your clip</h3>
-<video id="output" controls playsinline></video>
-<a id="download" hidden>Save your clip</a>
-<p><small>Export format depends on your iPhone browser's recording support.</small></p>
+<h3>03. Exported Video</h3>
+<video id="result" controls playsinline></video>
+<a id="save" hidden style="color:#c4b5fd">Save MP4 to iPhone</a>
 </div>
 
-<script>
-const file=document.getElementById('file');
-const video=document.getElementById('video');
-const output=document.getElementById('output');
-const start=document.getElementById('start');
-const duration=document.getElementById('duration');
-const status=document.getElementById('status');
-const download=document.getElementById('download');
-let sourceURL=null;
+<script type="module">
+import { FFmpeg } from
+'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+import { fetchFile, toBlobURL } from
+'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
-file.addEventListener('change',()=>{
- const f=file.files[0];
- if(!f)return;
- if(sourceURL)URL.revokeObjectURL(sourceURL);
- sourceURL=URL.createObjectURL(f);
- video.src=sourceURL;
- video.onloadedmetadata=()=>{
-  start.max=Math.floor(video.duration);
-  duration.max=Math.min(60,Math.floor(video.duration));
-  info.textContent=`${f.name} • ${Math.round(video.duration)} seconds`;
-  status.textContent='Video ready.';
- };
-});
+const ffmpeg = new FFmpeg();
+const file = document.getElementById('file');
+const status = document.getElementById('status');
+const loadBtn = document.getElementById('load');
+const exportBtn = document.getElementById('export');
+let selectedFile = null;
+let loaded = false;
+let resultURL = null;
 
-document.getElementById('preview').onclick=()=>{
- if(!video.src)return alert('Choose a video first.');
- const s=Math.max(0,Number(start.value)||0);
- video.currentTime=s;
- video.play();
- status.textContent='Previewing from selected start time.';
+file.onchange = () => {
+ selectedFile = file.files[0];
+ if(!selectedFile)return;
+ document.getElementById('preview').src =
+ URL.createObjectURL(selectedFile);
+ document.getElementById('info').textContent =
+ selectedFile.name + ' • ' +
+ (selectedFile.size/1048576).toFixed(1) + ' MB';
 };
 
-document.getElementById('export').onclick=async()=>{
- if(!video.src)return alert('Choose a video first.');
- if(!video.captureStream||!window.MediaRecorder){
-  status.textContent='This browser does not support in-browser video export. Try a supported browser.';
-  return;
+loadBtn.onclick = async () => {
+ try {
+  loadBtn.disabled = true;
+  status.textContent = 'Downloading video engine... Please wait.';
+  const base =
+  'https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+  await ffmpeg.load({
+   coreURL: await toBlobURL(base+'/ffmpeg-core.js','text/javascript'),
+   wasmURL: await toBlobURL(base+'/ffmpeg-core.wasm','application/wasm')
+  });
+  loaded = true;
+  exportBtn.disabled = false;
+  status.textContent = 'Video engine ready!';
+  loadBtn.textContent = 'Engine Loaded';
+ } catch(e) {
+  status.textContent = 'Engine loading failed: '+e.message;
+  loadBtn.disabled = false;
  }
- const s=Math.max(0,Number(start.value)||0);
- const d=Math.min(60,Math.max(1,Number(duration.value)||30));
- if(s>=video.duration)return alert('Start time is beyond video length.');
- const stream=video.captureStream();
- const mime=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
- if(!mime){status.textContent='No supported recording format found on this browser.';return;}
- const recorder=new MediaRecorder(stream,{mimeType:mime});
- const chunks=[];
- recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
- recorder.onstop=()=>{
-  const blob=new Blob(chunks,{type:mime});
-  const url=URL.createObjectURL(blob);
-  output.src=url;
-  download.href=url;
-  download.download='viralclip.'+(mime.includes('mp4')?'mp4':'webm');
-  download.textContent='Download your clip';
-  download.hidden=false;
-  download.style.display='block';
-  download.style.marginTop='15px';
-  download.style.color='#c4b5fd';
-  status.textContent='Clip exported. Use the link to save it.';
- };
- video.pause();
- video.currentTime=s;
- await new Promise(resolve=>video.onseeked=resolve);
- recorder.start();
- video.play();
- status.textContent='Recording your selected clip...';
- setTimeout(()=>{
-  video.pause();
-  recorder.stop();
-  stream.getTracks().forEach(t=>t.stop());
- },Math.min(d,video.duration-s)*1000);
+};
+
+exportBtn.onclick = async () => {
+ if(!selectedFile || !loaded)return;
+ try {
+  exportBtn.disabled = true;
+  status.textContent = 'Processing video... Keep Safari open.';
+  const ext = selectedFile.name.split('.').pop().toLowerCase()
+   .replace(/[^a-z0-9]/g,'') || 'mp4';
+  await ffmpeg.writeFile('input.'+ext,await fetchFile(selectedFile));
+  const s = Math.max(0,Number(document.getElementById('start').value)||0);
+  const d = Math.max(1,Math.min(60,Number(document.getElementById('duration').value)||10));
+  await ffmpeg.exec([
+   '-ss',String(s),
+   '-i','input.'+ext,
+   '-t',String(d),
+   '-c:v','libx264',
+   '-preset','ultrafast',
+   '-c:a','aac',
+   '-movflags','+faststart',
+   'output.mp4'
+  ]);
+  const data = await ffmpeg.readFile('output.mp4');
+  if(resultURL)URL.revokeObjectURL(resultURL);
+  resultURL = URL.createObjectURL(
+   new Blob([data],{type:'video/mp4'})
+  );
+  document.getElementById('result').src=resultURL;
+  const save=document.getElementById('save');
+  save.href=resultURL;
+  save.download='viralclip.mp4';
+  save.hidden=false;
+  save.textContent='Download MP4 to iPhone';
+  status.textContent='Export successful!';
+ } catch(e) {
+  status.textContent='Export failed: '+e.message;
+ } finally {
+  exportBtn.disabled=false;
+ }
 };
 </script>
 </body>
