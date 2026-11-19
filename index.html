@@ -1,0 +1,130 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10101b">
+<title>ViralClip AI</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#10101b;color:white;font-family:Arial,sans-serif;padding:22px}
+header{text-align:center;padding:20px 0}
+h1{font-size:30px;margin:0;color:#a78bfa}
+p{color:#aaa;line-height:1.5}
+.card{background:#1d1d2d;border:1px solid #34344b;border-radius:16px;padding:18px;margin:16px 0}
+button,.upload{display:block;width:100%;padding:14px;border:0;border-radius:10px;background:#8055ee;color:white;font-weight:bold;font-size:15px;text-align:center;margin-top:12px}
+input{width:100%;margin:12px 0}
+video{width:100%;max-height:360px;background:#000;border-radius:12px}
+label{display:block;margin-top:14px;color:#ddd}
+small{color:#999}
+#status{color:#a78bfa;margin-top:12px}
+</style>
+</head>
+<body>
+<header>
+<h1>VIRALCLIP AI</h1>
+<p>Your free AI-powered short video studio</p>
+</header>
+
+<div class="card">
+<h3>01 / Upload your video</h3>
+<label class="upload" for="file">Choose video from iPhone</label>
+<input id="file" type="file" accept="video/*" hidden>
+<video id="video" controls playsinline></video>
+<p id="info">No video selected yet.</p>
+</div>
+
+<div class="card">
+<h3>02 / Create your clip</h3>
+<label>Start time (seconds)</label>
+<input id="start" type="number" min="0" value="0">
+<label>Clip duration (seconds)</label>
+<input id="duration" type="number" min="1" max="60" value="30">
+<button id="preview">Preview selected clip</button>
+<button id="export">Export clip</button>
+<p id="status">Ready for your video.</p>
+</div>
+
+<div class="card">
+<h3>03 / Your clip</h3>
+<video id="output" controls playsinline></video>
+<a id="download" hidden>Save your clip</a>
+<p><small>Export format depends on your iPhone browser's recording support.</small></p>
+</div>
+
+<script>
+const file=document.getElementById('file');
+const video=document.getElementById('video');
+const output=document.getElementById('output');
+const start=document.getElementById('start');
+const duration=document.getElementById('duration');
+const status=document.getElementById('status');
+const download=document.getElementById('download');
+let sourceURL=null;
+
+file.addEventListener('change',()=>{
+ const f=file.files[0];
+ if(!f)return;
+ if(sourceURL)URL.revokeObjectURL(sourceURL);
+ sourceURL=URL.createObjectURL(f);
+ video.src=sourceURL;
+ video.onloadedmetadata=()=>{
+  start.max=Math.floor(video.duration);
+  duration.max=Math.min(60,Math.floor(video.duration));
+  info.textContent=`${f.name} • ${Math.round(video.duration)} seconds`;
+  status.textContent='Video ready.';
+ };
+});
+
+document.getElementById('preview').onclick=()=>{
+ if(!video.src)return alert('Choose a video first.');
+ const s=Math.max(0,Number(start.value)||0);
+ video.currentTime=s;
+ video.play();
+ status.textContent='Previewing from selected start time.';
+};
+
+document.getElementById('export').onclick=async()=>{
+ if(!video.src)return alert('Choose a video first.');
+ if(!video.captureStream||!window.MediaRecorder){
+  status.textContent='This browser does not support in-browser video export. Try a supported browser.';
+  return;
+ }
+ const s=Math.max(0,Number(start.value)||0);
+ const d=Math.min(60,Math.max(1,Number(duration.value)||30));
+ if(s>=video.duration)return alert('Start time is beyond video length.');
+ const stream=video.captureStream();
+ const mime=['video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));
+ if(!mime){status.textContent='No supported recording format found on this browser.';return;}
+ const recorder=new MediaRecorder(stream,{mimeType:mime});
+ const chunks=[];
+ recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+ recorder.onstop=()=>{
+  const blob=new Blob(chunks,{type:mime});
+  const url=URL.createObjectURL(blob);
+  output.src=url;
+  download.href=url;
+  download.download='viralclip.'+(mime.includes('mp4')?'mp4':'webm');
+  download.textContent='Download your clip';
+  download.hidden=false;
+  download.style.display='block';
+  download.style.marginTop='15px';
+  download.style.color='#c4b5fd';
+  status.textContent='Clip exported. Use the link to save it.';
+ };
+ video.pause();
+ video.currentTime=s;
+ await new Promise(resolve=>video.onseeked=resolve);
+ recorder.start();
+ video.play();
+ status.textContent='Recording your selected clip...';
+ setTimeout(()=>{
+  video.pause();
+  recorder.stop();
+  stream.getTracks().forEach(t=>t.stop());
+ },Math.min(d,video.duration-s)*1000);
+};
+</script>
+</body>
+</html>
